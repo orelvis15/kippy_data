@@ -4,7 +4,6 @@ ARG version_url
 ARG version_number
 ARG ssh_pub_key
 
-
 #INSTALL
 RUN apt-get update -y && apt-get upgrade -y
 RUN apt-get install -y curl zip screen iproute2 openssh-server sudo
