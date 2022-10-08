@@ -2,37 +2,38 @@ FROM ubuntu:latest
 
 ARG version_url
 ARG version_number
-ARG game_config
+ARG ssh_pub_key
 
 
 #INSTALL
 RUN apt-get update -y && apt-get upgrade -y
-RUN apt-get install -y curl zip screen iproute2 openssh-server
-
+RUN apt-get install -y curl zip screen iproute2 openssh-server sudo
 
 #SSH
 RUN mkdir /var/run/sshd
-RUN echo 'root:pass' | chpasswd
-RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+CMD ["/usr/sbin/sshd","-D"]
 
+RUN mkdir /root/.ssh
+RUN echo "$ssh_pub_key" > /root/.ssh/authorized_keys
+EXPOSE 22/tcp
 
 #TERRARIA SERVER
+EXPOSE 7777/tcp
 RUN mkdir -p /opt/volume/data
+VOLUME /opt/volume/data
+
 RUN mkdir /opt/volume/log
+VOLUME /opt/volume/log
+
 RUN mkdir /opt/volume/config
+VOLUME /opt/volume/config
+
 RUN mkdir /root/terraria && cd /root/terraria
-RUN mkfifo /opt/volume/log/serverout.txt
-
-
-#CREATE GAME CONFIG FILE
-RUN printf '%s\n' $game_config > /opt/volume/config/config.txt
-RUN cat /opt/volume/config/config.txt
-
+RUN mkfifo /opt/volume/log/log.txt
 
 WORKDIR /root/terraria
 
-RUN curl $version_url -o terraria_server.zip && unzip terraria_server.zip
+RUN curl -L $version_url -o terraria_server.zip && unzip terraria_server.zip
 RUN mv $version_number/Linux/* $version_number
 RUN rm -r $version_number/Windows $version_number/Mac $version_number/Linux
 
@@ -41,14 +42,8 @@ RUN mv $version_number/* /root
 
 WORKDIR /root
 
-
 #create script init server
-RUN echo "#!/bin/bash\n ./TerrariaServer.bin.x86_64 -config /opt/volume/config/config.txt > /opt/volume/log/serverout.txt" > init.sh
+RUN echo "#!/bin/bash\n service start ssh\n ./TerrariaServer.bin.x86_64 -config /opt/volume/config/config.txt > /opt/volume/log/log.txt" > init.sh
 RUN chmod +x init.sh
 
-ENTRYPOINT ["/usr/bin/screen", "-D", "-m", "-A", "-S", "terraria", "./init.sh"]
-
-EXPOSE 7777/tcp
-EXPOSE 22/tcp
-
-CMD ["/usr/sbin/sshd", "-D"]
+ENTRYPOINT ["screen", "-D", "-m", "-A", "-S", "terraria", "./init.sh"]
